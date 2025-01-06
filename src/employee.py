@@ -51,7 +51,12 @@ class Cart:
         return self.dictionary
 
 class bill_window:
-    def __init__(self, top, employee_id):
+    def __init__(self, top=None, employee_id=None):
+        if employee_id is None:
+            messagebox.showerror("Error", "No employee ID provided")
+            top.destroy()
+            return
+            
         self.root = top
         self.employee_id = employee_id
         self.cart = Cart()
@@ -123,7 +128,12 @@ class bill_window:
         
         with sqlite3.connect("./Database/store.db") as db:
             cur = db.cursor()
-            cur.execute("SELECT DISTINCT product_cat FROM products")
+            cur.execute("""
+                SELECT DISTINCT p.product_cat 
+                FROM products p 
+                JOIN inventory i ON p.product_id = i.product_id 
+                WHERE i.stock > 0
+            """)
             categories = [row[0] for row in cur.fetchall()]
             
         self.combo1.configure(values=categories)
@@ -193,6 +203,10 @@ class bill_window:
         self.button6 = Button(self.root, text="Exit", command=self.exit_app, **button_style)
         self.button6.place(relx=0.322, rely=0.885, width=86, height=25)
 
+        # Logout button
+        self.logout_button = Button(self.root, text="Logout", command=self.logout, **button_style)
+        self.logout_button.place(relx=0.030, rely=0.1025, width=76, height=23)
+
     def time(self):
         string = strftime('%H:%M:%S %p')
         self.clock.config(text=string)
@@ -203,33 +217,79 @@ class bill_window:
         self.combo2.set('')
         self.combo3.set('')
         
-        with sqlite3.connect("./Database/store.db") as db:
-            cur = db.cursor()
-            cur.execute("SELECT DISTINCT product_subcat FROM products WHERE product_cat = ?", 
-                       [self.combo1.get()])
-            subcats = [row[0] for row in cur.fetchall()]
+        try:
+            with sqlite3.connect("./Database/store.db") as db:
+                cur = db.cursor()
+                cur.execute("""
+                    SELECT DISTINCT p.product_subcat 
+                    FROM products p 
+                    JOIN inventory i ON p.product_id = i.product_id 
+                    WHERE p.product_cat = ? AND i.stock > 0
+                """, [self.combo1.get()])
+                subcats = [row[0] for row in cur.fetchall()]
+                print(f"Available subcategories: {subcats}")  # Debug print
+                
+            self.combo2.configure(values=subcats)
+            self.combo2.bind("<<ComboboxSelected>>", self.get_subcat)
+            self.combo3.configure(state="disabled")
             
-        self.combo2.configure(values=subcats)
-        self.combo2.bind("<<ComboboxSelected>>", self.get_subcat)
-        self.combo3.configure(state="disabled")
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            messagebox.showerror("Database Error", f"Error fetching subcategories: {e}", parent=self.root)
 
     def get_subcat(self, event=None):
         self.combo3.configure(state="readonly")
         self.combo3.set('')
         
-        with sqlite3.connect("./Database/store.db") as db:
-            cur = db.cursor()
-            cur.execute("""
-                SELECT p.product_name 
-                FROM products p 
-                JOIN inventory i ON p.product_id = i.product_id 
-                WHERE p.product_cat = ? AND p.product_subcat = ?
-            """, [self.combo1.get(), self.combo2.get()])
-            products = [row[0] for row in cur.fetchall()]
+        try:
+            with sqlite3.connect("./Database/store.db") as db:
+                cur = db.cursor()
+                cur.execute("""
+                    SELECT p.product_name 
+                    FROM products p 
+                    JOIN inventory i ON p.product_id = i.product_id 
+                    WHERE p.product_cat = ? 
+                    AND p.product_subcat = ? 
+                    AND i.stock > 0
+                """, [self.combo1.get(), self.combo2.get()])
+                
+                products = [row[0] for row in cur.fetchall()]
+                print(f"Available products: {products}")  # Debug print
+                
+            self.combo3.configure(values=products)
+            self.combo3.bind("<<ComboboxSelected>>", self.show_qty)
+            self.entry4.configure(state="disabled")
             
-        self.combo3.configure(values=products)
-        self.combo3.bind("<<ComboboxSelected>>", self.show_qty)
-        self.entry4.configure(state="disabled")
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            messagebox.showerror("Database Error", f"Error fetching products: {e}", parent=self.root)
+            
+    def show_products(self, event=None):
+        self.combo3.configure(state="readonly")
+        self.combo3.set('')
+        
+        try:
+            with sqlite3.connect("./Database/store.db") as db:
+                cur = db.cursor()
+                cur.execute("""
+                    SELECT p.product_name 
+                    FROM products p 
+                    JOIN inventory i ON p.product_id = i.product_id 
+                    WHERE p.product_cat = ? 
+                    AND p.product_subcat = ? 
+                    AND i.stock > 0
+                """, [self.combo1.get(), self.combo2.get()])
+                
+                products = [row[0] for row in cur.fetchall()]
+                print(f"Available products: {products}")  # Debug print
+                
+            self.combo3.configure(values=products)
+            self.combo3.bind("<<ComboboxSelected>>", self.show_qty)
+            self.entry4.configure(state="disabled")
+            
+        except sqlite3.Error as e:
+            print(f"Database error: {e}")
+            messagebox.showerror("Database Error", f"Error fetching products: {e}", parent=self.root)
 
     def show_qty(self, event=None):
         self.entry4.configure(state="normal")
@@ -320,7 +380,7 @@ class bill_window:
         bill_content = self.Scrolledtext1.get("1.0", END)
         if "Total" not in bill_content:
             divider = "\n" + "="*50 + "\n"
-            total = f"Total\t\t\t\tRs. {self.cart.total():.2f}"
+            total = f"Total\t\t\t\tRp. {self.cart.total():.2f}"
             self.Scrolledtext1.insert(END, f"{divider}{total}{divider}")
         self.Scrolledtext1.configure(state="disabled")
 
@@ -379,9 +439,15 @@ class bill_window:
         if messagebox.askyesno("Exit", "Are you sure you want to exit?", parent=self.root):
             self.root.destroy()
 
-# Example usage:
-if __name__ == "__main__":
-    root = Tk()
-    # Assume employee_id is passed from login system
-    app = bill_window(root, employee_id=1)  # Replace with actual employee_id
-    root.mainloop()
+    def logout(self):
+        if messagebox.askyesno(
+            "Logout",
+            "Are you sure you want to logout?",
+            parent=self.root
+        ):
+            self.root.destroy()
+            # Find the root window and show it
+            root = self.root.master
+            while root.master:
+                root = root.master
+            root.deiconify()

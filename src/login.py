@@ -98,6 +98,7 @@ class LoginPage:
             results = cursor.fetchone()
 
             if results:
+                self.employee_id = results[0]
                 if results[5] == "admin":
                     messagebox.showinfo("Success", "Login successful")
                     self.clear_entries()
@@ -130,4 +131,4 @@ class LoginPage:
     def open_employee_panel(self):
         from employee import bill_window
         employee_window = Toplevel()
-        bill_window(employee_window)
+        bill_window(employee_window, self.employee_id)
