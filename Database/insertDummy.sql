@@ -1,9 +1,9 @@
 INSERT INTO employees (username, contact_num, address, password, role) 
 VALUES 
-    ('admin', '1234567890', 'tangerang selatan', 'admin@admin.com', 'admin'), 
-    ('ramayasa', '1234567890', 'jimbaran', 'ramayasa81@gmail.com', 'employee'), 
-    ('monk', '1234567890', 'denpasar', 'pramajaya456@gmail.com', 'employee'),
-    ('ariep', '1234567890', 'buleleng', 'ariepmade@gmail.com', 'employee');
+    ('admin', '1234567890', 'tangerang selatan', 'admin', 'admin'), 
+    ('ramayasa', '1234567890', 'jimbaran', 'qwerty', 'employee'), 
+    ('monk', '1234567890', 'denpasar', '12345', 'employee'),
+    ('ariep', '1234567890', 'buleleng', 'abcde', 'employee');
 
 INSERT INTO products (product_name, product_cat, product_subcat, cost_price, vendor_stock, vendor)
 VALUES
