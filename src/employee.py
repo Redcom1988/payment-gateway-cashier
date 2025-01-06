@@ -1,12 +1,19 @@
 #==================imports===================
 import sqlite3
 import string
+import threading
+import time
+from datetime import datetime
 from tkinter import *
 from tkinter import messagebox
 from tkinter import ttk
-from time import strftime
-from datetime import datetime
 from tkinter import scrolledtext as tkst
+from tkinter import simpledialog
+import requests
+import hashlib
+import json
+
+from utils.dokuAPI import DokuOVOPayment
 #============================================
 
 class Item:
@@ -117,7 +124,7 @@ class bill_window:
         self.setup_buttons()
 
         # Start clock
-        self.time()
+        self.update_clock()
 
     def setup_product_selection(self):
         text_font = ("Poppins", "8")
@@ -207,10 +214,10 @@ class bill_window:
         self.logout_button = Button(self.root, text="Logout", command=self.logout, **button_style)
         self.logout_button.place(relx=0.030, rely=0.1025, width=76, height=23)
 
-    def time(self):
-        string = strftime('%H:%M:%S %p')
+    def update_clock(self):
+        string = time.strftime('%H:%M:%S %p') 
         self.clock.config(text=string)
-        self.clock.after(1000, self.time)
+        self.clock.after(1000, self.update_clock)
 
     def get_category(self, event=None):
         self.combo2.configure(state="readonly")
@@ -396,33 +403,134 @@ class bill_window:
         if "Total" not in self.Scrolledtext1.get("1.0", END):
             self.total_bill()
 
+        # Get OVO phone number from user
+        ovo_phone = simpledialog.askstring("OVO Payment", 
+                                        "Enter OVO phone number:",
+                                        parent=self.root)
+        
+        if not ovo_phone:
+            messagebox.showerror("Error", "OVO phone number is required", parent=self.root)
+            return
+
         try:
             with sqlite3.connect("./Database/store.db") as db:
                 cur = db.cursor()
                 
-                # Create transaction
+                # Create transaction with pending status
                 cur.execute("""
-                    INSERT INTO transactions (transaction_details, total, employee_id)
-                    VALUES (?, ?, ?)
+                    INSERT INTO transactions (transaction_details, total, employee_id, transaction_status)
+                    VALUES (?, ?, ?, 'pending')
                 """, [self.Scrolledtext1.get("1.0", END), self.cart.total(), self.employee_id])
                 
                 self.transaction_id = cur.lastrowid
 
-                # Update inventory
-                cart_items = self.cart.allCart()
-                for product_id, qty in cart_items.items():
+                # Initialize Doku OVO payment
+                doku_payment = DokuOVOPayment()
+                
+                # Create progress dialog
+                progress_window = Toplevel(self.root)
+                progress_window.title("Payment Processing")
+                progress_window.geometry("300x150")
+                progress_window.transient(self.root)
+                
+                Label(progress_window, 
+                    text=f"Waiting for payment confirmation...\nInvoice: {doku_payment.INVOICE_NUMBER}\nPlease complete payment in OVO app", 
+                    pady=10).pack()
+                
+                progress = ttk.Progressbar(progress_window, length=200, mode='determinate')
+                progress.pack(pady=20)
+                
+                time_label = Label(progress_window, text="Time remaining: 70s")
+                time_label.pack()
+
+                payment_status = {'completed': False, 'error': None, 'response': None}
+
+                def process_payment():
+                    try:
+                        # Convert total to integer (OVO requires amount without decimals)
+                        amount = int(self.cart.total())
+                        print(f"Processing payment for amount: {amount}")
+                        
+                        # Initial payment request
+                        response = doku_payment.create_payment(
+                            amount=amount,
+                            ovo_phone=ovo_phone
+                        )
+                        print(f"Initial payment response: {response}")
+                        
+                        if 'error' in response:
+                            raise Exception(response['error']['message'])
+                            
+                        start_timestamp = time.time()
+                        print(f"Starting payment wait at: {start_timestamp}")
+                        
+                        while time.time() - start_timestamp < 70:
+                            current_timestamp = time.time()
+                            elapsed = int(current_timestamp - start_timestamp)
+                            remaining = 70 - elapsed
+                            
+                            print(f"Checking payment status - Elapsed: {elapsed}s, Remaining: {remaining}s")
+                            
+                            if response.get('ovo_payment', {}).get('status') == 'SUCCESS':
+                                payment_status['completed'] = True
+                                payment_status['response'] = response
+                                print("Payment completed successfully")
+                                break
+                                
+                            # Update progress bar
+                            progress['value'] = (elapsed / 70) * 100
+                            time_label.config(text=f"Time remaining: {remaining}s")
+                            progress_window.update()
+                            time.sleep(1)
+                            
+                    except Exception as e:
+                        print(f"Payment error occurred: {str(e)}")
+                        payment_status['error'] = str(e)
+                    finally:
+                        print("Payment processing completed")
+                        progress_window.destroy()
+
+                # Start payment processing in a separate thread
+                payment_thread = threading.Thread(target=process_payment)
+                payment_thread.start()
+                
+                # Wait for the thread to complete
+                self.root.wait_window(progress_window)
+
+                # Process the payment result
+                if payment_status['error']:
+                    raise Exception(payment_status['error'])
+                
+                if payment_status['completed']:
+                    # Update transaction status to completed
                     cur.execute("""
-                        UPDATE inventory 
-                        SET stock = stock - ? 
-                        WHERE product_id = ?
-                    """, [qty, product_id])
+                        UPDATE transactions 
+                        SET transaction_status = 'completed' 
+                        WHERE transaction_id = ?
+                    """, [self.transaction_id])
+                    
+                    # Update inventory
+                    cart_items = self.cart.allCart()
+                    for product_id, qty in cart_items.items():
+                        cur.execute("""
+                            UPDATE inventory 
+                            SET stock = stock - ? 
+                            WHERE product_id = ?
+                        """, [qty, product_id])
 
-                db.commit()
-                messagebox.showinfo("Success", f"Bill generated successfully\nTransaction ID: {self.transaction_id}", parent=self.root)
-                self.state = 0
+                    db.commit()
+                    
+                    messagebox.showinfo(
+                        "Payment Success", 
+                        f"Transaction ID: {self.transaction_id}\nInvoice: {doku_payment.INVOICE_NUMBER}\nPayment completed successfully!",
+                        parent=self.root
+                    )
+                    self.state = 0
+                else:
+                    raise Exception("Payment timeout or not completed")
 
-        except sqlite3.Error as e:
-            messagebox.showerror("Database Error", f"An error occurred: {str(e)}", parent=self.root)
+        except Exception as e:
+            messagebox.showerror("Payment Error", f"Failed to process payment: {str(e)}", parent=self.root)
             if db:
                 db.rollback()
 
