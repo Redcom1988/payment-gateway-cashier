@@ -352,11 +352,9 @@ class InventoryManager:
                         product_id = self.tree.item(item)["values"][0]
                         # Delete from inventory first due to foreign key constraint
                         cur.execute("DELETE FROM inventory WHERE product_id = ?", [product_id])
-                        # Then delete from products
-                        cur.execute("DELETE FROM products WHERE product_id = ?", [product_id])
                     db.commit()
                     
-                messagebox.showinfo("Success", "Product(s) deleted successfully.", 
+                messagebox.showinfo("Success", "Product(s) deleted from inventory successfully.", 
                                   parent=self.root)
                 self.sel.clear()
                 self.DisplayData()
