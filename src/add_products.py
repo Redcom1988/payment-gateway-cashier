@@ -32,7 +32,7 @@ class add_product:
         # Stock Entry
         self.stock_label = Label(
             self.window,
-            text="Stock Quantity:",
+            text="Buy Amount:",
             font="-family {Poppins} -size 12",
             background="#ffffff"
         )
@@ -51,7 +51,7 @@ class add_product:
         # Selling Price Entry
         self.price_label = Label(
             self.window,
-            text="Selling Price:",
+            text="Set Selling Price:",
             font="-family {Poppins} -size 12",
             background="#ffffff"
         )
