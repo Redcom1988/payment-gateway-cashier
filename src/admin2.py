@@ -133,7 +133,20 @@ class AdminPage:
             self.root.deiconify() 
 
     def open_invoices(self):
-        messagebox.showinfo("Info", "Invoice management coming soon")
+        try:
+            # Create a new window for invoices
+            invoice_window = Toplevel(self.root)
+            
+            # Import and initialize InvoiceManager
+            from invoice_manager import InvoiceManager 
+            InvoiceManager(invoice_window)
+            
+        except ImportError:
+            messagebox.showerror("Error", "Could not load invoice manager module")
+            self.root.deiconify()
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred: {str(e)}")
+            self.root.deiconify()
 
     def open_about(self):
         messagebox.showinfo("About", "Payment Gateway Cashier System\nVersion 1.0")
