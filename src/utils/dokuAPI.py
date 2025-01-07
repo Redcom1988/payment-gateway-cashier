@@ -9,7 +9,7 @@ class DokuOVOPayment:
         self.CLIENT_ID = "BRN-0225-1736189694884"  # Your actual client ID
         self.SECRET_KEY = "SK-ZyDaNSqcYkWnUZoFpI1y"  # Your actual secret key
         self.BASE_URL = "https://api-sandbox.doku.com"
-        self.INVOICE_NUMBER = "INV-20210115-0001"
+        self.INVOICE_NUMBER = "INV-20210115-0002"
         
     def generate_checksum(self, amount, ovo_id):
         """
