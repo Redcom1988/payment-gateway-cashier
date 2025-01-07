@@ -9,8 +9,17 @@ class DokuOVOPayment:
         self.CLIENT_ID = "BRN-0225-1736189694884"  # Your actual client ID
         self.SECRET_KEY = "SK-ZyDaNSqcYkWnUZoFpI1y"  # Your actual secret key
         self.BASE_URL = "https://api-sandbox.doku.com"
-        self.INVOICE_NUMBER = "INV-20210115-0002"
+        self.INVOICE_NUMBER = self.generate_invoice_number()
         
+    def generate_invoice_number(self):
+        """Generate an invoice number based on current timestamp"""
+        current_time = datetime.now()
+        invoice_number = f"INV-{current_time.strftime('%Y%m%d-%H%M%S')}"
+        print(f"Generated invoice number: {invoice_number}")  # Debug print
+        print(f"Generated invoice number: {invoice_number}")  # Debug print
+        print(f"Generated invoice number: {invoice_number}")  # Debug print
+        return invoice_number
+    
     def generate_checksum(self, amount, ovo_id):
         """
         Generate checksum for Doku OVO payment
@@ -34,6 +43,9 @@ class DokuOVOPayment:
             current_time = datetime.utcnow()
             request_timestamp = current_time.strftime('%Y-%m-%dT%H:%M:%SZ')
             request_id = f"REQ-{current_time.strftime('%Y%m%d%H%M%S')}"
+            
+            # Generate new invoice number for each payment
+            self.INVOICE_NUMBER = self.generate_invoice_number()
             
             # Generate checksum
             amount_str = str(int(amount))
